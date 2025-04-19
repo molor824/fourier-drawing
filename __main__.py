@@ -59,7 +59,7 @@ def main():
         if should_exit:
             break
 
-        arrows = list(series.arrows(series_time)) if series else None
+        arrows = series.arrows(series_time) if series else None
         series_time += INTERVAL_SPEED / FPS
 
         surface = pg.display.get_surface()
@@ -72,7 +72,7 @@ def main():
             intensity = round(intensity * 255)
             pg.draw.line(surface, tuple(intensity for _ in range(3)), complex_to_tuple(trail0 + center), complex_to_tuple(trail1 + center), 2)
 
-        if arrows:
+        if arrows is not None:
             arrow_sum = 0j
             def draw_arrow(arrow: complex):
                 nonlocal arrow_sum

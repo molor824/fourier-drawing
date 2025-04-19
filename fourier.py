@@ -7,7 +7,7 @@ import math
 DT = 0.0001
 
 class FourierSeries:
-    def __init__(self, max_n: int, coefficients: np.ndarray[tuple, np.dtype[complex]], interval: float):
+    def __init__(self, max_n: int, coefficients: np.ndarray, interval: float):
         if max_n * 2 + 1 > coefficients.shape[0]:
             raise ArgumentError(None, "coefficients does not match max_n size")
 
@@ -19,8 +19,8 @@ class FourierSeries:
         if len(points) <= 1:
             raise ArgumentError(None, "points must have at least 2 elements")
 
-        points = points + [points[0]]
-        timeframes = timeframes + [timeframes[-1] + DT]
+        points = np.insert(np.array(points), -1, points[0])
+        timeframes = np.insert(np.array(timeframes), -1, timeframes[-1] + DT)
         
         a = timeframes[0]
         b = timeframes[-1]
