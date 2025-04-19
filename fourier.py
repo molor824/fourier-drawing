@@ -1,5 +1,6 @@
 from argparse import ArgumentError
 import scipy.integrate as integ
+import multiprocessing as mp
 import numpy as np
 import cmath
 import math
@@ -32,6 +33,8 @@ def integrate_c(n: int, points: list[complex], timeframes: list[float]):
 def pool_integrate_c(args):
     return integrate_c(*args)
 
+_pool = None
+
 class FourierSeries:
     def __init__(self, max_n: int, coefficients: np.ndarray[tuple, np.dtype[complex]], interval: float):
         if max_n * 2 + 1 > coefficients.shape[0]:
@@ -42,10 +45,15 @@ class FourierSeries:
         self.interval = interval
 
     def from_points(max_n: int, points: list[complex], timeframes: list[float]):
+        global _pool
         if len(points) <= 1:
             raise ArgumentError(None, "points must have at least 2 elements")
-        return FourierSeries(max_n, np.fromiter(
-            (integrate_c(i, points, timeframes) for i in range(-max_n, max_n + 1)),
+
+        if _pool is None:
+            _pool = mp.Pool(mp.cpu_count())
+
+        return FourierSeries(max_n, np.array(
+            _pool.map(pool_integrate_c, ((i, points, timeframes) for i in range(-max_n, max_n + 1))),
             dtype=complex
         ), timeframes[-1] - timeframes[0])
 
