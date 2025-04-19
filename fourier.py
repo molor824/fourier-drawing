@@ -1,10 +1,17 @@
 from argparse import ArgumentError
+import multiprocessing as mp
 import scipy.integrate as integ
 import numpy as np
 import cmath
 import math
 
 DT = 0.0001
+
+_cached_pool = None # it's expensive to create pool everytime because it basically copies the same python project cpu_count times
+
+def integrate_c_pool(args):
+    n, thetas, interpolated_points, time_samples, interval = args
+    return integ.simpson(np.exp(n * thetas) * interpolated_points, time_samples) / interval
 
 class FourierSeries:
     def __init__(self, max_n: int, coefficients: np.ndarray, interval: float):
@@ -16,6 +23,8 @@ class FourierSeries:
         self.interval = interval
 
     def from_points(max_n: int, points: list[complex], timeframes: list[float]):
+        global _cached_pool
+
         if len(points) <= 1:
             raise ArgumentError(None, "points must have at least 2 elements")
 
@@ -31,12 +40,16 @@ class FourierSeries:
 
         time_samples = np.linspace(a, b, sample_count)
         interpolated_points = np.interp(time_samples, timeframes, points)
-        coefficient_numbers = np.arange(-max_n, max_n + 1)
 
-        exponents = np.exp(np.outer(coefficient_numbers, angular_velocity * (time_samples - a)))
-        coefficient_integrals = integ.simpson(exponents * interpolated_points, time_samples) / interval
+        thetas = angular_velocity * (time_samples - a)
 
-        return FourierSeries(max_n, coefficient_integrals, interval)
+        if _cached_pool is None:
+            _cached_pool = mp.Pool(mp.cpu_count())
+        
+        coefficients = np.array(
+            _cached_pool.map(integrate_c_pool, ((n, thetas, interpolated_points, time_samples, interval) for n in range(-max_n, max_n + 1)))
+        )
+        return FourierSeries(max_n, coefficients, interval)
 
     def arrows(self, t: float):
         return self.coefficients * np.exp(1j * cmath.tau / self.interval * t * np.arange(-self.max_n, self.max_n + 1))
