@@ -1,6 +1,5 @@
 from argparse import ArgumentError
 import scipy.integrate as integ
-import multiprocessing as mp
 import numpy as np
 import cmath
 import math
