@@ -1,5 +1,4 @@
 import pygame as pg
-import numpy as np
 from fourier import FourierSeries
 
 WIDTH = 800
@@ -8,6 +7,9 @@ MAX_N = 100
 TRAIL_FADE_RATE = 1.0 / 8.0
 INTERVAL_SPEED = 1.0 / 4.0
 FPS = 60
+
+def complex_to_tuple(c: complex):
+    return c.real, c.imag
 
 def main():
     pg.init()
@@ -20,9 +22,10 @@ def main():
     series_time = 0.0
 
     drawing: list[complex] | None = None
-    center = np.array([WIDTH / 2.0, HEIGHT / 2.0])
+    timeframes: list[float] | None = None
+    trails: list[tuple[complex, float]] = []
 
-    trails: list[tuple[np.ndarray, float]] = []
+    center = (WIDTH + HEIGHT * 1j) * 0.5
 
     while True:
         should_exit = False
@@ -38,18 +41,21 @@ def main():
                 case pg.MOUSEBUTTONDOWN:
                     if event.button == 1:
                         drawing = []
+                        timeframes = []
                         series = None
                 case pg.MOUSEBUTTONUP:
                     if event.button == 1:
-                        if drawing:
-                            series = FourierSeries.from_points(MAX_N, drawing)
+                        if drawing is not None and len(drawing) > 2:
+                            series = FourierSeries.from_points(MAX_N, drawing, timeframes)
                             series_time = 0.0
                             trails = []
                         drawing = None
+                        timeframes = None
                 case pg.MOUSEMOTION:
                     if drawing is not None:
                         x, y = event.pos
-                        drawing.append(complex(x - center[0], y - center[1]))
+                        drawing.append(complex(x, y) - center)
+                        timeframes.append(pg.time.get_ticks() / 1000.0)
         if should_exit:
             break
 
@@ -64,15 +70,15 @@ def main():
             trail0, intensity = trails[i - 1]
             trail1, _ = trails[i]
             intensity = round(intensity * 255)
-            pg.draw.line(surface, tuple(intensity for _ in range(3)), trail0 + center, trail1 + center, 2)
+            pg.draw.line(surface, tuple(intensity for _ in range(3)), complex_to_tuple(trail0 + center), complex_to_tuple(trail1 + center), 2)
 
         if arrows:
-            arrow_sum = np.array([0.0, 0.0])
+            arrow_sum = 0j
             def draw_arrow(arrow: complex):
                 nonlocal arrow_sum
                 prev_sum = arrow_sum
-                arrow_sum = arrow_sum + np.array([arrow.real, arrow.imag])
-                pg.draw.line(surface, pg.Color("#ffffff"), prev_sum + center, arrow_sum + center, 1)
+                arrow_sum = arrow_sum + arrow
+                pg.draw.line(surface, pg.Color("#ffffff"), complex_to_tuple(prev_sum + center), complex_to_tuple(arrow_sum + center), 1)
             for i in range(0, series.max_n + 1):
                 draw_arrow(arrows[i + series.max_n])
                 if i != 0:
@@ -80,10 +86,10 @@ def main():
             trails.append((arrow_sum, 1.0))
 
         if drawing:
-            for i in range(0, len(drawing) - 1):
-                start = np.array([drawing[i].real, drawing[i].imag])
-                end = np.array([drawing[i + 1].real, drawing[i + 1].imag])
-                pg.draw.line(surface, pg.Color("#FFFFFF"), start + center, end + center, 1)
+            for i in range(1, len(drawing)):
+                start = drawing[i - 1]
+                end = drawing[i]
+                pg.draw.line(surface, pg.Color("#FFFFFF"), complex_to_tuple(start + center), complex_to_tuple(end + center), 1)
 
         pg.display.flip()
 

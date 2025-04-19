@@ -1,27 +1,35 @@
 from argparse import ArgumentError
+import multiprocessing as mp
 import scipy.integrate as integ
 import numpy as np
 import cmath
 import math
 
-DT = 0.0001
+DT = 0.001
 
-def integrate_c(n: int, points: list[complex]):
-    def time_range(dt: float):
-        t = 0.0
-        while t <= 1.0:
-            yield t
-            t += dt
+def time_range(a: float, b: float, dt: float):
+    t = a
+    while t <= b:
+        yield t
+        t += dt
+
+def integrate_c(n: int, points: list[complex], timeframes: list[float]):
+    points = points + [points[0]]
+    timeframes = timeframes + [timeframes[-1] + DT]
+
+    a = timeframes[0]
+    b = timeframes[-1]
+    interval = b - a
+
+    velocity = -math.tau * n / interval
 
     def inner(t: float):
-        nonlocal n, points
-        t_index = t * (len(points) + 1)
-        index0 = math.floor(t_index) % len(points)
-        index1 = math.ceil(t_index) % len(points)
-        p0, p1 = points[index0], points[index1]
-        point = (p1 - p0) * (t_index % 1) + p0
-        return point * cmath.rect(1, -math.tau * n * t)
-    return integ.simpson(list(map(inner, time_range(DT))), dx=DT)
+        point = np.interp(t, timeframes, points)
+        return point * cmath.rect(1, velocity * t)
+    return integ.trapezoid([inner(t) for t in time_range(a, b, DT)], dx=DT) / interval
+
+def pool_integrate_c(args):
+    return integrate_c(*args)
 
 class FourierSeries:
     def __init__(self, max_n: int, coefficients: np.ndarray[tuple, np.dtype[complex]]):
@@ -31,13 +39,14 @@ class FourierSeries:
         self.coefficients = coefficients
         self.max_n = max_n
 
-    def from_points(max_n: int, points: list[complex]):
+    def from_points(max_n: int, points: list[complex], timeframes: list[float]):
         if len(points) <= 1:
             raise ArgumentError(None, "points must have at least 2 elements")
-        return FourierSeries(max_n, np.fromiter(
-            (integrate_c(i, points) for i in range(-max_n, max_n + 1)),
-            dtype=complex
-        ))
+        with mp.Pool() as pool:
+            return FourierSeries(max_n, np.array(
+                pool.map(pool_integrate_c, ((i, points, timeframes) for i in range(-max_n, max_n + 1))),
+                dtype=complex
+            ))
 
     def arrows(self, t: float):
         return (self.coefficients[i + self.max_n] * cmath.rect(1.0, cmath.tau * i * t) for i in range(-self.max_n, self.max_n + 1))
