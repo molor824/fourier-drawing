@@ -7,34 +7,6 @@ import math
 
 DT = 0.0001
 
-def time_range(a: float, b: float, dt: float):
-    t = a
-    while t <= b:
-        yield t
-        t += dt
-
-def integrate_c(n: int, points: list[complex], timeframes: list[float]):
-    points = points + [points[0]]
-    timeframes = timeframes + [timeframes[-1] + DT]
-
-    a = timeframes[0]
-    b = timeframes[-1]
-    interval = b - a
-
-    sample_count = round(interval / DT)
-    theta = -1j * math.tau * n / interval
-    time_samples = np.linspace(a, b, sample_count)
-
-    return integ.simpson(
-        np.interp(time_samples, timeframes, points) * np.exp((time_samples - a) * theta),
-        time_samples,
-    ) / interval
-
-def pool_integrate_c(args):
-    return integrate_c(*args)
-
-_pool = None
-
 class FourierSeries:
     def __init__(self, max_n: int, coefficients: np.ndarray[tuple, np.dtype[complex]], interval: float):
         if max_n * 2 + 1 > coefficients.shape[0]:
@@ -45,17 +17,27 @@ class FourierSeries:
         self.interval = interval
 
     def from_points(max_n: int, points: list[complex], timeframes: list[float]):
-        global _pool
         if len(points) <= 1:
             raise ArgumentError(None, "points must have at least 2 elements")
 
-        if _pool is None:
-            _pool = mp.Pool(mp.cpu_count())
+        points = points + [points[0]]
+        timeframes = timeframes + [timeframes[-1] + DT]
+        
+        a = timeframes[0]
+        b = timeframes[-1]
+        interval = b - a
 
-        return FourierSeries(max_n, np.array(
-            _pool.map(pool_integrate_c, ((i, points, timeframes) for i in range(-max_n, max_n + 1))),
-            dtype=complex
-        ), timeframes[-1] - timeframes[0])
+        sample_count = round(interval / DT)
+        angular_velocity = -1j * math.tau / interval
+
+        time_samples = np.linspace(a, b, sample_count)
+        interpolated_points = np.interp(time_samples, timeframes, points)
+        coefficient_numbers = np.arange(-max_n, max_n + 1)
+
+        exponents = np.exp(np.outer(coefficient_numbers, angular_velocity * (time_samples - a)))
+        coefficient_integrals = integ.simpson(exponents * interpolated_points, time_samples) / interval
+
+        return FourierSeries(max_n, coefficient_integrals, interval)
 
     def arrows(self, t: float):
         return self.coefficients * np.exp(1j * cmath.tau / self.interval * t * np.arange(-self.max_n, self.max_n + 1))
