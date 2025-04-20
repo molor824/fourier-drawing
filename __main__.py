@@ -5,7 +5,7 @@ WIDTH = 800
 HEIGHT = 600
 MAX_N = 1000
 TRAIL_FADE_RATE = 1.0 / 8.0
-INTERVAL_SPEED = 1.0
+INTERVAL_SPEED = 1.0 / 2.0
 FPS = 60
 
 def complex_to_tuple(c: complex):

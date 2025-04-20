@@ -10,8 +10,8 @@ DT = 0.0001
 _cached_pool = None # it's expensive to create pool everytime because it basically copies the same python project cpu_count times
 
 def integrate_c_pool(args):
-    n, thetas, interpolated_points, time_samples, interval = args
-    return integ.simpson(np.exp(n * thetas) * interpolated_points, time_samples) / interval
+    n, thetas, interpolated_points, time_samples = args
+    return integ.simpson(np.exp(n * thetas) * interpolated_points, time_samples)
 
 class FourierSeries:
     def __init__(self, max_n: int, coefficients: np.ndarray, interval: float):
@@ -28,8 +28,8 @@ class FourierSeries:
         if len(points) <= 1:
             raise ArgumentError(None, "points must have at least 2 elements")
 
-        points = np.insert(np.array(points), -1, points[0])
-        timeframes = np.insert(np.array(timeframes), -1, timeframes[-1] + DT)
+        points = points + [points[0]]
+        timeframes = timeframes + [timeframes[-1] + DT]
         
         a = timeframes[0]
         b = timeframes[-1]
@@ -47,8 +47,8 @@ class FourierSeries:
             _cached_pool = mp.Pool(mp.cpu_count())
         
         coefficients = np.array(
-            _cached_pool.map(integrate_c_pool, ((n, thetas, interpolated_points, time_samples, interval) for n in range(-max_n, max_n + 1)))
-        )
+            _cached_pool.map(integrate_c_pool, ((n, thetas, interpolated_points, time_samples) for n in range(-max_n, max_n + 1)))
+        ) / interval
         return FourierSeries(max_n, coefficients, interval)
 
     def arrows(self, t: float):
